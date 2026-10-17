@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -5,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#ffffff">
   <title>Macro Total</title>
+
   <style>
     :root {
       color-scheme: light;
@@ -13,22 +15,40 @@
       color: #171717;
     }
 
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      height: 100%;
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
 
     body {
       margin: 0;
-      padding: 20px 14px 28px;
+      padding: 16px 14px;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      overscroll-behavior: none;
     }
 
     main {
       width: 100%;
       max-width: 760px;
+      height: 100%;
+      min-height: 0;
       margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
     #totals {
+      flex: 0 0 auto;
       min-height: 1.5em;
-      margin: 0 0 14px;
+      margin: 0 0 12px;
       font-size: clamp(1.65rem, 6vw, 2.2rem);
       font-weight: 700;
       line-height: 1.25;
@@ -38,25 +58,37 @@
 
     #entries {
       display: block;
+      flex: 1 1 0;
       width: 100%;
-      min-height: 48vh;
-      min-height: max(48vh, 300px);
+      min-height: 0;
       padding: 14px;
       border: 1px solid #c9c9c9;
       border-radius: 10px;
       background: #fff;
       color: inherit;
       font: 16px/1.5 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
-      resize: vertical;
+      resize: none;
+      overflow: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      scroll-margin: 0;
     }
 
-    #entries:focus-visible, #clear:focus-visible {
+    #entries:focus,
+    button:focus-visible {
       outline: 3px solid #2563eb;
-      outline-offset: 2px;
+      outline-offset: -3px;
     }
 
-    #clear {
-      margin-top: 10px;
+    .actions {
+      flex: 0 0 auto;
+      display: flex;
+      gap: 10px;
+      padding-top: 10px;
+    }
+
+    button {
+      min-height: 44px;
       padding: 10px 16px;
       border: 1px solid #d0d0d0;
       border-radius: 8px;
@@ -65,27 +97,79 @@
       font: inherit;
       font-size: 15px;
       cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
     }
 
-    #clear:active { background: #e8e8e8; }
+    button:active {
+      background: #e8e8e8;
+    }
+
+    #copy {
+      background: #171717;
+      color: #fff;
+      border-color: #171717;
+    }
+
+    #copy:active {
+      background: #383838;
+    }
 
     @media (max-width: 480px) {
-      body { padding: 16px 12px 22px; }
-      #entries { min-height: max(48vh, 280px); }
+      body {
+        padding: 12px;
+      }
+
+      #totals {
+        margin-bottom: 10px;
+      }
+
+      #entries {
+        padding: 12px;
+      }
+    }
+
+    @media (max-height: 400px) {
+      body {
+        padding-top: 8px;
+        padding-bottom: 8px;
+      }
+
+      #totals {
+        font-size: 1.4rem;
+        margin-bottom: 6px;
+      }
+
+      .actions {
+        padding-top: 6px;
+      }
+
+      button {
+        min-height: 36px;
+        padding: 6px 12px;
+      }
     }
   </style>
 </head>
+
 <body>
   <main>
     <p id="totals" aria-live="polite" aria-atomic="true">0</p>
+
     <textarea
       id="entries"
       aria-label="Food entries and macro numbers"
-      placeholder="Enter numbers or macros, e.g.&#10;240K - 50P - 200g raw chicken breast&#10;120 - 12p, 10F&#10;300k - 67.5c, 10p (1 cup oatmeal)"
+      placeholder="Enter numbers or macros, e.g.
+240K - 50P - 200g raw chicken breast
+120 - 12p, 10F
+300k - 67.5c, 10p (1 cup oatmeal)"
       spellcheck="false"
       autofocus
     ></textarea>
-    <button id="clear" type="button">Clear</button>
+
+    <div class="actions">
+      <button id="clear" type="button">Clear</button>
+      <button id="copy" type="button">Copy Text</button>
+    </div>
   </main>
 
   <script>
@@ -94,25 +178,10 @@
     const entriesInput = document.getElementById("entries");
     const totalsDisplay = document.getElementById("totals");
     const clearButton = document.getElementById("clear");
+    const copyButton = document.getElementById("copy");
 
-    /**
-     * Calculate the calorie and macro totals from the textarea.
-     *
-     * Rules:
-     * - Text inside parentheses is ignored completely.
-     * - Plain numbers and numbers followed by K count as calories.
-     * - Numbers followed immediately by P, C, F, or B count as that macro.
-     * - A macro letter must be directly after its number: "100C" counts,
-     *   while "100 cal" and "100cal" do not count as a macro.
-     * - Numbers with other units directly after them, such as "200g", are
-     *   ignored rather than accidentally counted as calories.
-     * - Matching is case-insensitive, so k/p/c/f/b and uppercase forms work.
-     */
     function calculateTotals(text) {
-      // Remove parenthetical notes first, including their numbers.
       const textWithoutParentheses = text.replace(/\([^)]*\)/g, " ");
-
-      // Uppercase once so the matching rules are easy to read consistently.
       const normalizedText = textWithoutParentheses.toUpperCase();
 
       const totals = {
@@ -123,8 +192,6 @@
         B: 0
       };
 
-      // Match each number, then inspect the character immediately after it.
-      // The lookbehind prevents matching a number embedded in another number.
       const numberPattern = /(?<![\d.])\d+(?:\.\d+)?/g;
       let match;
 
@@ -134,60 +201,94 @@
         const nextCharacter = normalizedText[suffixStart] || "";
         const characterAfterSuffix = normalizedText[suffixStart + 1] || "";
 
-        if (["P", "C", "F", "B"].includes(nextCharacter) &&
-            !/[A-Z]/.test(characterAfterSuffix)) {
-          // Count a macro only when its single-letter suffix is a whole token:
-          // "67.5C," counts, but "100CAL" does not count as 100C.
+        if (
+          ["P", "C", "F", "B"].includes(nextCharacter) &&
+          !/[A-Z]/.test(characterAfterSuffix)
+        ) {
           totals[nextCharacter] += number;
-        } else if (nextCharacter === "K" &&
-                   !/[A-Z]/.test(characterAfterSuffix)) {
-          // A standalone K suffix marks calories, just like a plain number.
+        } else if (
+          nextCharacter === "K" &&
+          !/[A-Z]/.test(characterAfterSuffix)
+        ) {
           totals.calories += number;
-        } else if (nextCharacter === "" || !/[A-Z]/.test(nextCharacter)) {
-          // A plain number counts as calories if it isn't followed by a letter.
-          // This intentionally excludes numbers with units like "200G".
+        } else if (
+          nextCharacter === "" ||
+          !/[A-Z]/.test(nextCharacter)
+        ) {
           totals.calories += number;
         }
-        // Other letter suffixes (e.g. G or CAL) are unsupported, so ignore them.
       }
 
       return totals;
     }
 
-    /**
-     * Display only categories that have a nonzero total.
-     * Calories are shown first, followed by P, C, F, and B.
-     */
-    function updateTotals() {
-      const totals = calculateTotals(entriesInput.value);
-      const displayedTotals = [];
-
-      if (totals.calories !== 0) displayedTotals.push(formatNumber(totals.calories));
-      for (const macro of ["P", "C", "F", "B"]) {
-        if (totals[macro] !== 0) {
-          displayedTotals.push(`${formatNumber(totals[macro])}${macro}`);
-        }
-      }
-
-      totalsDisplay.textContent = displayedTotals.length > 0
-        ? displayedTotals.join(", ")
-        : "0";
-    }
-
-    // Avoid unnecessary trailing decimal zeros while preserving fractional sums.
     function formatNumber(number) {
       return Number(number.toFixed(10)).toString();
     }
 
-    // Recalculate immediately whenever the text changes.
+    function updateTotals() {
+      const totals = calculateTotals(entriesInput.value);
+      const displayedTotals = [];
+
+      if (totals.calories !== 0) {
+        displayedTotals.push(formatNumber(totals.calories));
+      }
+
+      for (const macro of ["P", "C", "F", "B"]) {
+        if (totals[macro] !== 0) {
+          displayedTotals.push(
+            `${formatNumber(totals[macro])}${macro}`
+          );
+        }
+      }
+
+      totalsDisplay.textContent = displayedTotals.length
+        ? displayedTotals.join(", ")
+        : "0";
+    }
+
     entriesInput.addEventListener("input", updateTotals);
 
-    // Clear both the input and the displayed total.
     clearButton.addEventListener("click", () => {
       entriesInput.value = "";
       updateTotals();
-      entriesInput.focus();
+      entriesInput.focus({ preventScroll: true });
     });
+
+    copyButton.addEventListener("click", async () => {
+      const text = entriesInput.value;
+
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        // Fallback for browsers without Clipboard API access.
+        entriesInput.focus({ preventScroll: true });
+        entriesInput.select();
+
+        const copied = document.execCommand("copy");
+
+        // Keep the text selection and textarea contents intact.
+        if (!copied) {
+          copyButton.textContent = "Copy Failed";
+          setTimeout(() => {
+            copyButton.textContent = "Copy Text";
+          }, 1500);
+          return;
+        }
+      }
+
+      copyButton.textContent = "Copied!";
+      setTimeout(() => {
+        copyButton.textContent = "Copy Text";
+      }, 1500);
+    });
+
+    // Prevent focus from moving the page when the textarea is selected.
+    entriesInput.addEventListener("focus", () => {
+      window.scrollTo(0, 0);
+    });
+
+    updateTotals();
   </script>
 </body>
 </html>
