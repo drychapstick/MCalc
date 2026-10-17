@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <title>Macro Total</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #fff;
+      color: #171717;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 20px 14px 28px;
+    }
+
+    main {
+      width: 100%;
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    #totals {
+      min-height: 1.5em;
+      margin: 0 0 14px;
+      font-size: clamp(1.65rem, 6vw, 2.2rem);
+      font-weight: 700;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #entries {
+      display: block;
+      width: 100%;
+      min-height: 48vh;
+      min-height: max(48vh, 300px);
+      padding: 14px;
+      border: 1px solid #c9c9c9;
+      border-radius: 10px;
+      background: #fff;
+      color: inherit;
+      font: 16px/1.5 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      resize: vertical;
+    }
+
+    #entries:focus-visible, #clear:focus-visible {
+      outline: 3px solid #2563eb;
+      outline-offset: 2px;
+    }
+
+    #clear {
+      margin-top: 10px;
+      padding: 10px 16px;
+      border: 1px solid #d0d0d0;
+      border-radius: 8px;
+      background: #f5f5f5;
+      color: #171717;
+      font: inherit;
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    #clear:active { background: #e8e8e8; }
+
+    @media (max-width: 480px) {
+      body { padding: 16px 12px 22px; }
+      #entries { min-height: max(48vh, 280px); }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p id="totals" aria-live="polite" aria-atomic="true">0</p>
+    <textarea
+      id="entries"
+      aria-label="Food entries and macro numbers"
+      placeholder="Enter numbers or macros, e.g.&#10;240K - 50P - 200g raw chicken breast&#10;120 - 12p, 10F&#10;300k - 67.5c, 10p (1 cup oatmeal)"
+      spellcheck="false"
+      autofocus
+    ></textarea>
+    <button id="clear" type="button">Clear</button>
+  </main>
+
+  <script>
+    "use strict";
+
+    const entriesInput = document.getElementById("entries");
+    const totalsDisplay = document.getElementById("totals");
+    const clearButton = document.getElementById("clear");
+
+    /**
+     * Calculate the calorie and macro totals from the textarea.
+     *
+     * Rules:
+     * - Text inside parentheses is ignored completely.
+     * - Plain numbers and numbers followed by K count as calories.
+     * - Numbers followed immediately by P, C, F, or B count as that macro.
+     * - A macro letter must be directly after its number: "100C" counts,
+     *   while "100 cal" and "100cal" do not count as a macro.
+     * - Numbers with other units directly after them, such as "200g", are
+     *   ignored rather than accidentally counted as calories.
+     * - Matching is case-insensitive, so k/p/c/f/b and uppercase forms work.
+     */
+    function calculateTotals(text) {
+      // Remove parenthetical notes first, including their numbers.
+      const textWithoutParentheses = text.replace(/\([^)]*\)/g, " ");
+
+      // Uppercase once so the matching rules are easy to read consistently.
+      const normalizedText = textWithoutParentheses.toUpperCase();
+
+      const totals = {
+        calories: 0,
+        P: 0,
+        C: 0,
+        F: 0,
+        B: 0
+      };
+
+      // Match each number, then inspect the character immediately after it.
+      // The lookbehind prevents matching a number embedded in another number.
+      const numberPattern = /(?<![\d.])\d+(?:\.\d+)?/g;
+      let match;
+
+      while ((match = numberPattern.exec(normalizedText)) !== null) {
+        const number = Number(match[0]);
+        const suffixStart = match.index + match[0].length;
+        const nextCharacter = normalizedText[suffixStart] || "";
+        const characterAfterSuffix = normalizedText[suffixStart + 1] || "";
+
+        if (["P", "C", "F", "B"].includes(nextCharacter) &&
+            !/[A-Z]/.test(characterAfterSuffix)) {
+          // Count a macro only when its single-letter suffix is a whole token:
+          // "67.5C," counts, but "100CAL" does not count as 100C.
+          totals[nextCharacter] += number;
+        } else if (nextCharacter === "K" &&
+                   !/[A-Z]/.test(characterAfterSuffix)) {
+          // A standalone K suffix marks calories, just like a plain number.
+          totals.calories += number;
+        } else if (nextCharacter === "" || !/[A-Z]/.test(nextCharacter)) {
+          // A plain number counts as calories if it isn't followed by a letter.
+          // This intentionally excludes numbers with units like "200G".
+          totals.calories += number;
+        }
+        // Other letter suffixes (e.g. G or CAL) are unsupported, so ignore them.
+      }
+
+      return totals;
+    }
+
+    /**
+     * Display only categories that have a nonzero total.
+     * Calories are shown first, followed by P, C, F, and B.
+     */
+    function updateTotals() {
+      const totals = calculateTotals(entriesInput.value);
+      const displayedTotals = [];
+
+      if (totals.calories !== 0) displayedTotals.push(formatNumber(totals.calories));
+      for (const macro of ["P", "C", "F", "B"]) {
+        if (totals[macro] !== 0) {
+          displayedTotals.push(`${formatNumber(totals[macro])}${macro}`);
+        }
+      }
+
+      totalsDisplay.textContent = displayedTotals.length > 0
+        ? displayedTotals.join(", ")
+        : "0";
+    }
+
+    // Avoid unnecessary trailing decimal zeros while preserving fractional sums.
+    function formatNumber(number) {
+      return Number(number.toFixed(10)).toString();
+    }
+
+    // Recalculate immediately whenever the text changes.
+    entriesInput.addEventListener("input", updateTotals);
+
+    // Clear both the input and the displayed total.
+    clearButton.addEventListener("click", () => {
+      entriesInput.value = "";
+      updateTotals();
+      entriesInput.focus();
+    });
+  </script>
+</body>
+</html>
