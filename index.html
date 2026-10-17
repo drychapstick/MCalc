@@ -268,18 +268,29 @@ honey - 60k, 17c
     });
 
     copyButton.addEventListener("click", async () => {
-      const text = entriesInput.value;
+      const summary = totalsDisplay.textContent.trim();
+      const entries = entriesInput.value;
+
+      // Copy the summary first, followed by a blank line and all entries.
+      const text = `${summary}\n\n${entries}`;
 
       try {
         await navigator.clipboard.writeText(text);
       } catch {
         // Fallback for browsers without Clipboard API access.
-        entriesInput.focus({ preventScroll: true });
-        entriesInput.select();
+        const copyArea = document.createElement("textarea");
+        copyArea.value = text;
+        copyArea.setAttribute("readonly", "");
+        copyArea.style.position = "fixed";
+        copyArea.style.opacity = "0";
+        copyArea.style.pointerEvents = "none";
+
+        document.body.appendChild(copyArea);
+        copyArea.select();
 
         const copied = document.execCommand("copy");
+        document.body.removeChild(copyArea);
 
-        // Keep the text selection and textarea contents intact.
         if (!copied) {
           copyButton.textContent = "Copy Failed";
           setTimeout(() => {
