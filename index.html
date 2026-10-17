@@ -83,7 +83,8 @@
     }
 
     #entries:focus,
-    button:focus-visible {
+    button:focus-visible,
+    #includeTotals:focus-visible {
       outline: 3px solid #2563eb;
       outline-offset: -3px;
     }
@@ -91,6 +92,7 @@
     .actions {
       flex: 0 0 auto;
       display: flex;
+      align-items: center;
       gap: 10px;
       padding-top: 10px;
     }
@@ -122,6 +124,28 @@
       background: #383838;
     }
 
+    .include-totals {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-height: 44px;
+      padding: 0 4px;
+      font-size: 14px;
+      white-space: nowrap;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #includeTotals {
+      width: 17px;
+      height: 17px;
+      margin: 0;
+      accent-color: #171717;
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+
     @media (max-width: 480px) {
       body {
         padding: 12px;
@@ -133,6 +157,20 @@
 
       #entries {
         padding: 12px;
+      }
+
+      .actions {
+        gap: 8px;
+      }
+
+      button {
+        padding-left: 14px;
+        padding-right: 14px;
+      }
+
+      .include-totals {
+        gap: 6px;
+        font-size: 13px;
       }
     }
 
@@ -154,6 +192,10 @@
       button {
         min-height: 36px;
         padding: 6px 12px;
+      }
+
+      .include-totals {
+        min-height: 36px;
       }
     }
   </style>
@@ -181,6 +223,14 @@ honey - 60k, 17c
     <div class="actions">
       <button id="clear" type="button">Clear</button>
       <button id="copy" type="button">Copy Text</button>
+
+      <label class="include-totals" for="includeTotals">
+        <input
+          type="checkbox"
+          id="includeTotals"
+        >
+        Include totals
+      </label>
     </div>
   </main>
 
@@ -191,6 +241,7 @@ honey - 60k, 17c
     const totalsDisplay = document.getElementById("totals");
     const clearButton = document.getElementById("clear");
     const copyButton = document.getElementById("copy");
+    const includeTotalsCheckbox = document.getElementById("includeTotals");
 
     function calculateTotals(text) {
       const textWithoutParentheses = text.replace(/\([^)]*\)/g, " ");
@@ -268,11 +319,12 @@ honey - 60k, 17c
     });
 
     copyButton.addEventListener("click", async () => {
-      const summary = totalsDisplay.textContent.trim();
       const entries = entriesInput.value;
+      const summary = totalsDisplay.textContent.trim();
 
-      // Copy the summary first, followed by a blank line and all entries.
-      const text = `${summary}\n\n${entries}`;
+      const text = includeTotalsCheckbox.checked
+        ? `${summary}\n\n${entries}`
+        : entries;
 
       try {
         await navigator.clipboard.writeText(text);
